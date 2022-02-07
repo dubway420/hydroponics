@@ -6,7 +6,7 @@ data using always SSL.
 It is compatible with the methods normally related to plain
 connections, like client.connect(host, port).
 
-Written by Arturo Guadalupi
+Written by Arturo 
 last revision November 2015
 
 */
@@ -16,12 +16,41 @@ last revision November 2015
 #include "Arduino_SensorKit.h"
 
 #include "arduino_secrets.h" 
+
+#define SensorPin A3          // the pH meter Analog output is connected with the Arduino’s Analog
+unsigned long int avgValue;  //Store the average value of the sensor feedback
+
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
 char ssid[] = SECRET_SSID;        // your network SSID (name)
 char pass[] = SECRET_PASS;    // your network password (use for WPA, or use as key for WEP)
 int keyIndex = 0;            // your network key index number (needed only for WEP)
 
 int LED = 6;
+
+int R1= 1000;
+int Ra=25;
+
+int ECPin= A1;
+int ECGround=A2;
+int ECPower =A4;
+
+//float raw= 0;
+
+float Temperature=10;
+float EC=0;
+float EC25 =0;
+int ppm =0;
+ 
+ 
+float raw= 0;
+float Vin= 5;
+float Vdrop= 0;
+float Rc= 0;
+float buffer=0;
+
+float K=2.88;
+
+const int analogOutPin = 9; // Analog output pin that the LED is attached to
 
 
 int status = WL_IDLE_STATUS;
@@ -36,6 +65,9 @@ char server[] = "script.google.com";    // name address for Google (using DNS)
 WiFiSSLClient client;
 
 void setup() {
+
+  
+  
   //Initialize serial and wait for port to open:
   Serial.begin(9600);
   while (!Serial) {
@@ -47,6 +79,15 @@ void setup() {
   pinMode(LED, OUTPUT);
 
   digitalWrite(LED, LOW);
+
+  WiFi.setTimeout(120 * 1000);
+
+  pinMode(ECPin,INPUT);
+  pinMode(ECPower,OUTPUT);//Setting pin for sourcing current
+  pinMode(ECGround,OUTPUT);//setting pin for sinking current
+  digitalWrite(ECGround,LOW);//We can leave the ground connected permanantly
+ 
+
 
 
   Environment.begin();
@@ -63,7 +104,7 @@ void setup() {
     Serial.println("Please upgrade the firmware");
   }
 
-  connectWiFi();
+//  connectWiFi();
   
   Serial.println("Connected to WiFi");
   digitalWrite(LED, HIGH);
@@ -88,20 +129,60 @@ void setup() {
   
 }
 
+void(* resetFunc) (void) = 0;//declare reset function at address 0
+
 void loop() {
+
+//  int light = analogRead(A0);
+  
   // if there are incoming bytes available
   // from the server, read them and print them:
 //  while (client.available()) {
 //    char c = client.read();
 //    Serial.write(c);
 //  }
+//
+//  if (status != WL_CONNECTED) {
+//    connectWiFi();  }  
 
-  if (status != WL_CONNECTED) {
-    connectWiFi();  }  
+  digitalWrite(ECPower,HIGH);
+  raw= analogRead(ECPin);
+  raw= analogRead(ECPin);// This is not a mistake, First reading will be low beause if charged a capacitor
+  digitalWrite(ECPower,LOW);
+
+  R1=(R1+Ra);// Taking into acount Powering Pin Resitance
+
+  Serial.print("raw: ");
+  Serial.println(raw);
+
+  Serial.print("pH");
+  Serial.println(analogRead(SensorPin));
+
+//  Vdrop= (Vin*raw);
+//  
+//  Serial.print("Vdrop: ");
+//  Serial.println(Vdrop);
+//  
+//  Rc=(Vdrop*R1)/(Vin-Vdrop);
+//
+//  Serial.print("Rc: ");
+//  Serial.println(Rc);
+//  
+//  Rc=Rc-Ra; //acounting for Digital Pin Resitance
+//
+//  Serial.print("Rc: ");
+//  Serial.println(Rc);
+//  
+//  EC = 1000/(Rc*K);
+//
+//  Serial.print("EC: ");
+//  Serial.println(EC);
     
-  serverSend();
+//  serverSend();
 
-  delay(60000);
+  delay(10000);
+
+  resetFunc();
 
   // if the server's disconnected, stop the client:
 //  if (!client.connected()) {
@@ -116,9 +197,9 @@ void loop() {
 
 void serverSend() {
 
-  float temp = Environment.readTemperature();
-  float humidity = Environment.readHumidity();
-  int light = analogRead(A3);
+//  float temp = Environment.readTemperature();
+//  float humidity = Environment.readHumidity();
+  int light = analogRead(A0);
   
 //  Serial.print(light);
 
@@ -127,7 +208,10 @@ void serverSend() {
   if (client.connect(server, 443)) {
     Serial.println("connected to server");
     // Make a HTTP request:
-    client.println("GET https://script.google.com/macros/s/AKfycbzVa3Km3y9gHxXs_EHhtpCRdEy5xKQzDvR4-iy_B4v7CunX3PeuuhSg0EGYEzc9XxO25g/exec?Temp=" + String(temp) + "&Humidity=" + String(humidity) + "&Light=" + String(light));
+//    client.println("GET https://script.google.com/macros/s/AKfycbzVa3Km3y9gHxXs_EHhtpCRdEy5xKQzDvR4-iy_B4v7CunX3PeuuhSg0EGYEzc9XxO25g/exec?Temp=" + String(temp) + "&Humidity=" + String(humidity) + "&Light=" + String(light));
+    
+    client.println("GET https://script.google.com/macros/s/AKfycbzVa3Km3y9gHxXs_EHhtpCRdEy5xKQzDvR4-iy_B4v7CunX3PeuuhSg0EGYEzc9XxO25g/exec?Temp=" + String(light));
+
     client.println("Host: script.google.com");
     client.println("Connection: close");
     client.println();
